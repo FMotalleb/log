@@ -2,6 +2,7 @@ package log
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"go.uber.org/zap"
@@ -38,7 +39,7 @@ func NewBuilder() *Builder {
 		encoderConfig: zapcore.EncoderConfig{
 			TimeKey:        "timestamp",
 			LevelKey:       "level",
-			NameKey:        "logger",
+			NameKey:        "ZAPLOGger",
 			CallerKey:      "caller",
 			MessageKey:     "message",
 			StacktraceKey:  "stacktrace",
@@ -403,4 +404,72 @@ func (b *Builder) MustBuild() *zap.Logger {
 		panic(err)
 	}
 	return logger
+}
+
+// FromEnv configures the builder using environment variables with sane defaults
+func (b *Builder) FromEnv() *Builder {
+	builder := *b
+
+	// Core configuration
+	level := envOr("ZAPLOG_LEVEL", "info")
+	builder = *builder.Level(level)
+
+	// Development mode
+	isDev := envBoolOr("ZAPLOG_DEVELOPMENT", false)
+	if isDev {
+		builder = *builder.Development(true)
+	}
+
+	// Time format
+	timeFormat := envOr("ZAPLOG_TIME_FORMAT", "iso8601")
+	switch strings.ToLower(timeFormat) {
+	case "iso8601":
+		builder = *builder.ISO8601Time()
+	case "rfc3339":
+		builder = *builder.RFC3339Time()
+	case "epoch":
+		builder = *builder.EpochTime()
+	default:
+		if timeFormat != "" {
+			builder = *builder.CustomTime(timeFormat)
+		}
+	}
+
+	// Level encoding
+	levelFormat := envOr("ZAPLOG_LEVEL_FORMAT", "lowercase")
+	switch strings.ToLower(levelFormat) {
+	case "lowercase":
+		builder = *builder.LowercaseLevel()
+	case "capital":
+		builder = *builder.CapitalLevel()
+	case "color":
+		builder = *builder.ColorLevel()
+	}
+
+	// Output paths
+	if outputPaths := envSliceOr("ZAPLOG_OUTPUT_PATHS", []string{"stdout"}); len(outputPaths) > 0 {
+		builder = *builder.OutputPaths(outputPaths...)
+	}
+
+	if errorPaths := envSliceOr("ZAPLOG_ERROR_PATHS", []string{"stderr"}); len(errorPaths) > 0 {
+		builder = *builder.ErrorOutputPaths(errorPaths...)
+	}
+
+	// Caller and stacktrace
+	if envBoolOr("ZAPLOG_DISABLE_CALLER", false) {
+		builder = *builder.DisableCaller(true)
+	}
+
+	if envBoolOr("ZAPLOG_DISABLE_STACKTRACE", false) {
+		builder = *builder.DisableStacktrace(true)
+	}
+
+	// Sampling configuration
+	if envBoolOr("ZAPLOG_ENABLE_SAMPLING", false) {
+		initial := envIntOr("ZAPLOG_SAMPLING_INITIAL", 100)
+		thereafter := envIntOr("ZAPLOG_SAMPLING_THEREAFTER", 100)
+		builder = *builder.Sampling(initial, thereafter)
+	}
+
+	return &builder
 }

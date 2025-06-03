@@ -40,6 +40,42 @@ func WithNewLoggerForced(
 	return WithLogger(ctx, l)
 }
 
+// WithNewEnvLogger builds logger using env variables and attach it to given context
+func WithNewEnvLogger(
+	ctx context.Context,
+	builders ...BuilderFunc,
+) (context.Context, error) {
+	envBuilders := append([]BuilderFunc{
+		func(b *Builder) *Builder {
+			return b.FromEnv()
+		},
+	},
+		builders...,
+	)
+	return WithNewLogger(
+		ctx,
+		envBuilders...,
+	)
+}
+
+// WithNewLoggerForced does what [WithNewLogger] does but panics if fails
+func WithNewEnvLoggerForced(
+	ctx context.Context,
+	builders ...BuilderFunc,
+) context.Context {
+	envBuilders := append([]BuilderFunc{
+		func(b *Builder) *Builder {
+			return b.FromEnv()
+		},
+	},
+		builders...,
+	)
+	return WithNewLoggerForced(
+		ctx,
+		envBuilders...,
+	)
+}
+
 // WithLogger adds logger to context
 func WithLogger(ctx context.Context, logger *zap.Logger) context.Context {
 	return context.WithValue(ctx, loggerKey, logger)
